@@ -1,9 +1,6 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use rand::Rng;
-use std::cmp::Ordering;
 use std::fmt;
-use std::io;
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
