@@ -1,4 +1,3 @@
-
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use rand::Rng;
@@ -9,7 +8,6 @@ use std::io;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-mod lib {
 #[derive(PartialEq, Eq, EnumIter, Copy, Clone)]
 pub enum Suit {
     Hearts,
@@ -89,11 +87,11 @@ impl fmt::Display for Card {
 }
 
 pub struct Deck {
-    cards: Vec<Card>,
+    pub cards: Vec<Card>,
 }
 
 impl Deck {
-    fn new() -> Deck {
+    pub fn new() -> Deck {
         /// Generate a new sorted deck of cards
         let mut cards = Vec::with_capacity(52);
         for suit in Suit::iter() {
@@ -103,11 +101,9 @@ impl Deck {
         }
         Deck { cards }
     }
-    fn shuffle(&mut self) {
+    pub fn shuffle(&mut self) {
         /// Shuffle the deck of cards in place
         let mut rng = thread_rng();
         self.cards.shuffle(&mut rng);
     }
-}
-
 }
