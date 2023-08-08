@@ -1,10 +1,9 @@
 mod lib;
+use lib::Game;
+
 
 fn main() {
-    // make a shuffled deckk and print it
-    let mut deck = lib::Deck::new();
-    deck.shuffle();
-    for card in deck.cards.iter() {
-        println!("{}", card);
-    }
+    // make a shuffled deck and print it
+    let mut Game = Game::new();
+    println!("{:?}", Game);
 }
