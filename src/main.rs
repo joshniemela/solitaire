@@ -53,7 +53,6 @@ impl Pile {
     fn new(cards: Vec<Card>) -> Pile {
         Pile { cards }
     }
-}
 
 struct Freecell {
     card: Option<Card>,
