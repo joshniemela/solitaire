@@ -8,7 +8,7 @@ trait Stackable {
     fn pop(&mut self) -> Option<Card>;
 }
 
-#[derive(Debug, EnumIter)]
+#[derive(Clone, Copy, Debug, EnumIter)]
 enum Suit {
     Clubs,
     Diamonds,
@@ -46,6 +46,7 @@ fn deal_cards(cards: Vec<Card>, num_piles: usize) -> Vec<Vec<Card>> {
     piles
 }
 
+#[derive(Debug)]
 struct Pile {
     cards: Vec<Card>,
 }
@@ -53,28 +54,23 @@ impl Pile {
     fn new(cards: Vec<Card>) -> Pile {
         Pile { cards }
     }
+}
 
+#[derive(Clone, Copy, Debug)]
 struct Freecell {
     card: Option<Card>,
 }
-impl Freecell {
-    fn new() -> Freecell {
-        Freecell { card: None }
-    }
-}
 
+#[derive(Clone, Copy, Debug)]
 struct Foundation {
     card: Option<Card>,
-}
-impl Foundation {
-    fn new() -> Foundation {
-        Foundation { card: None }
-    }
 }
 
 const FREECELL_NUM: usize = 4;
 const FOUNDATION_NUM: usize = 4; // TODO: make this automatically infered from Suit
 const TABLEAU_NUM: usize = 8;
+
+#[derive(Debug)]
 struct Game {
     tableau: Vec<Pile>,
     freecells: [Freecell; FREECELL_NUM],
@@ -89,8 +85,8 @@ impl Game {
             .into_iter()
             .map(|cards| Pile::new(cards))
             .collect();
-        let freecells = [Freecell::new(); FREECELL_NUM];
-        let foundations = [Foundation::new(); FOUNDATION_NUM];
+        let freecells = [Freecell { card: None }; FREECELL_NUM];
+        let foundations = [Foundation { card: None }; FOUNDATION_NUM];
         Game {
             tableau,
             freecells,
