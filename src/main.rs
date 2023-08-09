@@ -148,7 +148,28 @@ impl Game {
     }
 }
 
+fn prettify_card(card: &Card) -> (String, String) {
+    let suit = match card.suit {
+        Suit::Clubs => "♣",
+        Suit::Diamonds => "♦",
+        Suit::Hearts => "♥",
+        Suit::Spades => "♠",
+    };
+    let rank = match &card.rank {
+        1 => "A",
+        11 => "J",
+        12 => "Q",
+        13 => "K",
+        _ => &card.rank.to_string(),
+    };
+    (suit.to_string(), rank.to_string())
+}
+
+fn print_game(game: &Game) {
+    //println!("{:#?}", game);
+}
+
 fn main() {
     let game = Game::new();
-    println!("{:#?}", game);
+    print_game(&game);
 }
