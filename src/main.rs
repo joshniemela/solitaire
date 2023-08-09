@@ -8,7 +8,7 @@ trait Stackable {
     fn pop(&mut self) -> Option<Card>;
 }
 
-#[derive(Clone, Copy, Debug, EnumIter)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, EnumIter)]
 enum Suit {
     Clubs,
     Diamonds,
@@ -60,10 +60,63 @@ impl Pile {
 struct Freecell {
     card: Option<Card>,
 }
+impl Stackable for Freecell {
+    fn push(&mut self, card: Card) -> Result<(), Card> {
+        if self.card.is_some() {
+            Err(card)
+        } else {
+            self.card = Some(card);
+            Ok(())
+        }
+    }
+    fn pop(&mut self) -> Option<Card> {
+        self.card
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 struct Foundation {
     card: Option<Card>,
+}
+impl Stackable for Foundation {
+    fn push(&mut self, card: Card) -> Result<(), Card> {
+        match self.card {
+            None => {
+                if card.rank == 0 {
+                    self.card = Some(card);
+                    Ok(())
+                } else {
+                    Err(card)
+                }
+            }
+            // deconstruct the card to suit and rank
+            Some(Card { suit, rank }) => {
+                if card.suit == suit && card.rank == rank + 1 {
+                    self.card = Some(card);
+                    Ok(())
+                } else {
+                    Err(card)
+                }
+            }
+        }
+    }
+    fn pop(&mut self) -> Option<Card> {
+        // return the card and decrement the rank by 1
+        match self.card {
+            None => None,
+            Some(Card { suit, rank }) => {
+                if rank == 1 {
+                    self.card = None;
+                } else {
+                    self.card = Some(Card {
+                        suit,
+                        rank: rank - 1,
+                    });
+                }
+                self.card
+            }
+        }
+    }
 }
 
 const FREECELL_NUM: usize = 4;
@@ -97,5 +150,5 @@ impl Game {
 
 fn main() {
     let game = Game::new();
-    println!("{:?}", game);
+    println!("{:#?}", game);
 }
