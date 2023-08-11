@@ -55,6 +55,28 @@ impl Pile {
         Pile { cards }
     }
 }
+impl Stackable for Pile {
+    fn push(&mut self, card: Card) -> Result<(), Card> {
+        match self.cards.last() {
+            None => {
+                self.cards.push(card);
+                Ok(())
+            }
+            Some(Card { suit, rank }) => {
+                if card.suit != *suit && card.rank == rank - 1 {
+                    self.cards.push(card);
+                    Ok(())
+                } else {
+                    Err(card)
+                }
+            }
+        }
+    }
+
+    fn pop(&mut self) -> Option<Card> {
+        self.cards.pop()
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 struct Freecell {
@@ -148,28 +170,91 @@ impl Game {
     }
 }
 
-fn prettify_card(card: &Card) -> (String, String) {
-    let suit = match card.suit {
-        Suit::Clubs => "♣",
-        Suit::Diamonds => "♦",
-        Suit::Hearts => "♥",
-        Suit::Spades => "♠",
-    };
-    let rank = match &card.rank {
-        1 => "A",
-        11 => "J",
-        12 => "Q",
-        13 => "K",
-        _ => &card.rank.to_string(),
-    };
-    (suit.to_string(), rank.to_string())
+fn make_ascii_card(card: Option<Card>) -> String {
+    match card {
+        None => String::from(" 0 "),
+        Some(Card { suit, rank }) => {
+            let suit_char = match suit {
+                Suit::Clubs => '♣',
+                Suit::Diamonds => '♦',
+                Suit::Hearts => '♥',
+                Suit::Spades => '♠',
+            };
+            let rank_str = match rank {
+                1 => String::from(" A"),
+                10 => String::from("10"),
+                11 => String::from(" J"),
+                12 => String::from(" Q"),
+                13 => String::from(" K"),
+                _ => format!("{:2}", rank),
+            };
+            format!("{}{}", rank_str, suit_char)
+        }
+    }
 }
 
-fn print_game(game: &Game) {
-    //println!("{:#?}", game);
+fn make_game_ascii(game: &Game) -> String {
+    // first row is foundations and freecells
+    let mut ascii = String::new();
+    for foundation in game.foundations.iter() {
+        ascii.push_str(&make_ascii_card(foundation.card));
+        ascii.push(' ');
+    }
+    for freecell in game.freecells.iter() {
+        ascii.push_str(&make_ascii_card(freecell.card));
+        ascii.push(' ');
+    }
+    ascii.push('\n');
+
+    // line spacer
+    ascii.push_str(&String::from_utf8(vec![b'-'; 4 * (FREECELL_NUM + FOUNDATION_NUM)]).unwrap());
+    ascii.push('\n');
+
+    // second row is tableau
+    let mut max_pile_size = 0;
+    for pile in game.tableau.iter() {
+        if pile.cards.len() > max_pile_size {
+            max_pile_size = pile.cards.len();
+        }
+    }
+    for i in 0..max_pile_size {
+        for pile in game.tableau.iter() {
+            if pile.cards.len() > i {
+                ascii.push_str(&make_ascii_card(Some(pile.cards[i])));
+            } else {
+                ascii.push_str("   ");
+            }
+            ascii.push(' ');
+        }
+        ascii.push('\n');
+    }
+    ascii
+}
+
+fn move_card(game: &mut Game, from: usize, to: usize) -> Result<(), ()> {
+    // move the nth card to the mth freecell
+    let card = game.tableau[from].pop().ok_or(())?;
+    game.freecells[to].push(card).map_err(|_| ())?;
+    Ok(())
+}
+
+// ACUTAL LOOP
+use crossterm::terminal;
+use std::io;
+use std::io::Read;
+
+struct CleanUp;
+
+impl Drop for CleanUp {
+    fn drop(&mut self) {
+        terminal::disable_raw_mode().expect("Could not disable raw mode")
+    }
 }
 
 fn main() {
-    let game = Game::new();
-    print_game(&game);
+    let _clean_up = CleanUp;
+    terminal::enable_raw_mode().expect("failed to turn on Raw mode");
+    let mut buf = [0; 1];
+    while io::stdin().read(&mut buf).expect("Failed to read line") == 1 && buf != [b'q'] {}
+    panic!(); /* add this line*/
 }
