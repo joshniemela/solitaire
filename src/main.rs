@@ -1,6 +1,6 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use std::fmt;
+use std::{cell::RefCell, fmt};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -150,9 +150,9 @@ const TABLEAU_NUM: usize = 8;
 
 #[derive(Debug)]
 struct Game {
-    tableau: Vec<Pile>,
-    freecells: [Freecell; FREECELL_NUM],
-    foundations: [Foundation; FOUNDATION_NUM],
+    tableau: Vec<RefCell<Pile>>,
+    freecells: [RefCell<Freecell>; FREECELL_NUM],
+    foundations: [RefCell<Foundation>; FOUNDATION_NUM],
 }
 impl Game {
     fn new() -> Game {
@@ -161,10 +161,10 @@ impl Game {
         cards.shuffle(&mut rng);
         let tableau = deal_cards(cards, TABLEAU_NUM)
             .into_iter()
-            .map(|cards| Pile::new(cards))
+            .map(|cards| RefCell::new(Pile::new(cards)))
             .collect();
-        let freecells = [Freecell { card: None }; FREECELL_NUM];
-        let foundations = [Foundation { card: None }; FOUNDATION_NUM];
+        let freecells = [Freecell { card: None }; FREECELL_NUM].map(|f| RefCell::new(f));
+        let foundations = [Foundation { card: None }; FOUNDATION_NUM].map(|f| RefCell::new(f));
         Game {
             tableau,
             freecells,
@@ -268,7 +268,7 @@ fn draw_game(game: &Game) {
     for (i, freecell) in game.freecells.iter().enumerate() {
         draw_card(
             &mut stdout,
-            freecell.card,
+            freecell.borrow().card,
             origin.0 + 6 * i as u16,
             origin.1,
         );
@@ -277,14 +277,14 @@ fn draw_game(game: &Game) {
     for (i, foundation) in game.foundations.iter().enumerate() {
         draw_card(
             &mut stdout,
-            foundation.card,
+            foundation.borrow().card,
             foundation_origin.0 + 6 * i as u16,
             foundation_origin.1,
         );
     }
     // draw the tableau
     for (i, pile) in game.tableau.iter().enumerate() {
-        for (j, card) in pile.cards.iter().enumerate() {
+        for (j, card) in pile.borrow().cards.iter().enumerate() {
             draw_card(
                 &mut stdout,
                 Some(*card),
@@ -306,7 +306,12 @@ impl Drop for CleanUp {
 }
 
 // move from one struct that implements stackable to another stackable
-fn move_card(from: &mut impl Stackable, to: &mut impl Stackable) -> Result<(), ()> {
+fn move_card(
+    from: &RefCell<impl Stackable + ?Sized>,
+    to: &RefCell<impl Stackable + ?Sized>,
+) -> Result<(), ()> {
+    let mut from = from.borrow_mut();
+    let mut to = to.borrow_mut();
     match from.top() {
         None => Err(()),
         Some(card) => {
@@ -324,19 +329,13 @@ const FREECELL_KEYS: [char; 4] = ['t', 'y', 'u', 'i'];
 const PILE_KEYS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
 
 // using a char and the game, get the corresponding stackable
-fn get_stackable(game: &Game, key: char) -> Result<Box<&dyn Stackable>, ()> {
+fn get_stackable(game: &Game, key: char) -> Result<&RefCell<dyn Stackable>, ()> {
     if FOUNDATION_KEYS.contains(&key) {
-        Ok(Box::new(
-            &game.foundations[FOUNDATION_KEYS.iter().position(|&x| x == key).unwrap()],
-        ))
+        Ok(&game.foundations[FOUNDATION_KEYS.iter().position(|&x| x == key).unwrap()])
     } else if FREECELL_KEYS.contains(&key) {
-        Ok(Box::new(
-            &game.freecells[FREECELL_KEYS.iter().position(|&x| x == key).unwrap()],
-        ))
+        Ok(&game.freecells[FREECELL_KEYS.iter().position(|&x| x == key).unwrap()])
     } else if PILE_KEYS.contains(&key) {
-        Ok(Box::new(
-            &game.tableau[PILE_KEYS.iter().position(|&x| x == key).unwrap()],
-        ))
+        Ok(&game.tableau[PILE_KEYS.iter().position(|&x| x == key).unwrap()])
     } else {
         Err(())
     }
@@ -370,10 +369,10 @@ fn main() {
                 continue;
             }
             // get the stackables
-            let mut from_stack = *get_stackable(&game, from).unwrap();
-            let mut to_stack = *get_stackable(&game, to).unwrap();
+            let from_stack = get_stackable(&game, from).unwrap();
+            let to_stack = get_stackable(&game, to).unwrap();
             // try to move the card
-            if move_card(&mut from_stack, &mut to_stack).is_ok() {
+            if move_card(from_stack, to_stack).is_ok() {
                 draw_game(&game);
             }
         }
