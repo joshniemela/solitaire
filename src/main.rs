@@ -135,7 +135,7 @@ impl Stackable for Foundation {
                         rank: rank - 1,
                     });
                 }
-                self.card
+                Some(Card { suit, rank })
             }
         }
     }
@@ -180,7 +180,7 @@ use crossterm::{
     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
     terminal::{
         disable_raw_mode, enable_raw_mode, Clear,
-        ClearType::{All, FromCursorUp},
+        ClearType::{All, CurrentLine, FromCursorUp},
         EnterAlternateScreen, LeaveAlternateScreen,
     },
     ExecutableCommand,
@@ -367,26 +367,23 @@ fn main() {
             stdin.read_exact(&mut buffer).unwrap();
             let from = buffer[0] as char;
             let to = buffer[1] as char;
-            execute!(
-                io::stdout(),
-                MoveTo(0, 25),
-                Print(format!("Moving card from: {} to: {}", from, to))
-            );
             // try to move the card
             if from != to && move_card(&mut game, from, to).is_ok() {
                 execute!(
                     io::stdout(),
-                    MoveTo(0, 25),
+                    MoveTo(0, 45),
+                    Clear(CurrentLine),
                     Print(format!("Moving card from: {} to: {}", from, to))
                 );
             } else {
                 execute!(
                     io::stdout(),
-                    MoveTo(0, 25),
+                    MoveTo(0, 45),
+                    Clear(CurrentLine),
                     Print(format!("Illegal move from: {} to: {}", from, to))
                 );
             }
-            execute!(io::stdout(), MoveTo(0, 24));
+            execute!(io::stdout(), MoveTo(0, 44));
             draw_game(&game);
         }
     }
