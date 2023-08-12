@@ -306,52 +306,42 @@ impl Drop for CleanUp {
     }
 }
 
+// move from one struct that implements stackable to another stackable
+fn move_card(game: &mut Game, from: char, to: char) -> Result<(), ()> {
+    let from_stack = get_stackable(game, from)?;
+
+    match from_stack.top() {
+        None => Err(()),
+        Some(card) => {
+            let to_stack = get_stackable(game, to)?;
+            if to_stack.legal_push(card) {
+                let from_stack = get_stackable(game, from)?;
+                let card = from_stack.pop().unwrap();
+                let to_stack = get_stackable(game, to)?;
+                to_stack.push(card);
+                Ok(())
+            } else {
+                Err(())
+            }
+        }
+    }
+}
+
 const FOUNDATION_KEYS: [char; 4] = ['t', 'y', 'u', 'i'];
 const FREECELL_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
 const PILE_KEYS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
 
-fn check_move_legal(game: Game, from: char, to: char) -> bool {
-    let from_stack = match from {
-        't' => game.foundations[0],
-        'y' => game.foundations[1],
-        'u' => game.foundations[2],
-        'i' => game.foundations[3],
-        'q' => game.freecells[0],
-        'w' => game.freecells[1],
-        'e' => game.freecells[2],
-        'r' => game.freecells[3],
-        '1' => game.tableau[0],
-        '2' => game.tableau[1],
-        '3' => game.tableau[2],
-        '4' => game.tableau[3],
-        '5' => game.tableau[4],
-        '6' => game.tableau[5],
-        '7' => game.tableau[6],
-        '8' => game.tableau[7],
-        _ => panic!("Invalid key"),
-    };
-    let to_stack = match to {
-        't' => game.foundations[0],
-        'y' => game.foundations[1],
-        'u' => game.foundations[2],
-        'i' => game.foundations[3],
-        'q' => game.freecells[0],
-        'w' => game.freecells[1],
-        'e' => game.freecells[2],
-        'r' => game.freecells[3],
-        '1' => game.tableau[0],
-        '2' => game.tableau[1],
-        '3' => game.tableau[2],
-        '4' => game.tableau[3],
-        '5' => game.tableau[4],
-        '6' => game.tableau[5],
-        '7' => game.tableau[6],
-        '8' => game.tableau[7],
-        _ => panic!("Invalid key"),
-    };
-
-    to_stack.legal_move(from_stack)
-}
+// using a char and the game, get the corresponding stackable
+fn get_stackable(game: &mut Game, key: char) -> Result<&mut dyn Stackable, ()> {
+    if FOUNDATION_KEYS.contains(&key) {
+        Ok(&mut game.foundations[FOUNDATION_KEYS.iter().position(|&x| x == key).unwrap()])
+    } else if FREECELL_KEYS.contains(&key) {
+        Ok(&mut game.freecells[FREECELL_KEYS.iter().position(|&x| x == key).unwrap()])
+    } else if PILE_KEYS.contains(&key) {
+        Ok(&mut game.tableau[PILE_KEYS.iter().position(|&x| x == key).unwrap()])
+    } else {
+        Err(())
+    }
 
 fn main() {
     let _clean_up = CleanUp;
@@ -382,6 +372,10 @@ fn main() {
             );
             if from == to {
                 continue;
+            }
+            // try to move the card
+            if move_card(&mut game, from, to).is_ok() {
+                draw_game(&game);
             }
         }
     }
