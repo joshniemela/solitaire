@@ -306,12 +306,18 @@ impl Drop for CleanUp {
 }
 
 // move from one struct that implements stackable to another stackable
-fn move_card(from: &mut impl Stackable, to: &mut impl Stackable) -> Result<(), ()> {
-    match from.top() {
+fn move_card(game: &mut Game, from: char, to: char) -> Result<(), ()> {
+    let from_stack = get_stackable(game, from)?;
+
+    match from_stack.top() {
         None => Err(()),
         Some(card) => {
-            if to.legal_push(card) {
-                to.push(from.pop().unwrap());
+            let to_stack = get_stackable(game, to)?;
+            if to_stack.legal_push(card) {
+                let from_stack = get_stackable(game, from)?;
+                let card = from_stack.pop().unwrap();
+                let to_stack = get_stackable(game, to)?;
+                to_stack.push(card);
                 Ok(())
             } else {
                 Err(())
@@ -324,19 +330,13 @@ const FREECELL_KEYS: [char; 4] = ['t', 'y', 'u', 'i'];
 const PILE_KEYS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
 
 // using a char and the game, get the corresponding stackable
-fn get_stackable(game: &Game, key: char) -> Result<Box<&dyn Stackable>, ()> {
+fn get_stackable(game: &mut Game, key: char) -> Result<&mut dyn Stackable, ()> {
     if FOUNDATION_KEYS.contains(&key) {
-        Ok(Box::new(
-            &game.foundations[FOUNDATION_KEYS.iter().position(|&x| x == key).unwrap()],
-        ))
+        Ok(&mut game.foundations[FOUNDATION_KEYS.iter().position(|&x| x == key).unwrap()])
     } else if FREECELL_KEYS.contains(&key) {
-        Ok(Box::new(
-            &game.freecells[FREECELL_KEYS.iter().position(|&x| x == key).unwrap()],
-        ))
+        Ok(&mut game.freecells[FREECELL_KEYS.iter().position(|&x| x == key).unwrap()])
     } else if PILE_KEYS.contains(&key) {
-        Ok(Box::new(
-            &game.tableau[PILE_KEYS.iter().position(|&x| x == key).unwrap()],
-        ))
+        Ok(&mut game.tableau[PILE_KEYS.iter().position(|&x| x == key).unwrap()])
     } else {
         Err(())
     }
@@ -369,11 +369,8 @@ fn main() {
             if from == to {
                 continue;
             }
-            // get the stackables
-            let mut from_stack = *get_stackable(&game, from).unwrap();
-            let mut to_stack = *get_stackable(&game, to).unwrap();
             // try to move the card
-            if move_card(&mut from_stack, &mut to_stack).is_ok() {
+            if move_card(&mut game, from, to).is_ok() {
                 draw_game(&game);
             }
         }
