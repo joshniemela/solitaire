@@ -115,7 +115,7 @@ struct Foundation {
 impl Stackable for Foundation {
     fn legal_push(&self, card: Card) -> bool {
         match self.card {
-            None => card.rank == 0,
+            None => card.rank == 1,
             Some(Card { suit, rank }) => card.suit == suit && card.rank == rank + 1,
         }
     }
@@ -179,8 +179,9 @@ use crossterm::{
     execute, queue,
     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
     terminal::{
-        disable_raw_mode, enable_raw_mode, Clear, ClearType::All, EnterAlternateScreen,
-        LeaveAlternateScreen,
+        disable_raw_mode, enable_raw_mode, Clear,
+        ClearType::{All, FromCursorUp},
+        EnterAlternateScreen, LeaveAlternateScreen,
     },
     ExecutableCommand,
 };
@@ -264,7 +265,7 @@ fn draw_game(game: &Game) {
     let foundation_origin = (origin.0 + 6 * FREECELL_NUM as u16 + 2, origin.1);
     let pile_origin = (origin.0, origin.1 + 6);
     let mut stdout = io::stdout();
-    queue!(stdout, Clear(All));
+    queue!(stdout, Clear(FromCursorUp));
     // drawing the freecells
     for (i, freecell) in game.freecells.iter().enumerate() {
         draw_card(
@@ -342,6 +343,7 @@ fn get_stackable(game: &mut Game, key: char) -> Result<&mut dyn Stackable, ()> {
     } else {
         Err(())
     }
+}
 
 fn main() {
     let _clean_up = CleanUp;
@@ -370,13 +372,24 @@ fn main() {
                 MoveTo(0, 25),
                 Print(format!("Moving card from: {} to: {}", from, to))
             );
-            if from == to {
-                continue;
-            }
             // try to move the card
-            if move_card(&mut game, from, to).is_ok() {
-                draw_game(&game);
+            if from != to && move_card(&mut game, from, to).is_ok() {
+                execute!(
+                    io::stdout(),
+                    MoveTo(0, 25),
+                    Print(format!("Moving card from: {} to: {}", from, to))
+                );
+            } else {
+                execute!(
+                    io::stdout(),
+                    MoveTo(0, 25),
+                    Print(format!("Illegal move from: {} to: {}", from, to))
+                );
             }
+            execute!(io::stdout(), MoveTo(0, 24));
+            draw_game(&game);
         }
     }
 }
+
+// TODO: moving from foundation to foundation crashes
