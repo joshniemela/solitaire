@@ -310,6 +310,49 @@ const FOUNDATION_KEYS: [char; 4] = ['t', 'y', 'u', 'i'];
 const FREECELL_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
 const PILE_KEYS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
 
+fn check_move_legal(game: Game, from: char, to: char) -> bool {
+    let from_stack = match from {
+        't' => game.foundations[0],
+        'y' => game.foundations[1],
+        'u' => game.foundations[2],
+        'i' => game.foundations[3],
+        'q' => game.freecells[0],
+        'w' => game.freecells[1],
+        'e' => game.freecells[2],
+        'r' => game.freecells[3],
+        '1' => game.tableau[0],
+        '2' => game.tableau[1],
+        '3' => game.tableau[2],
+        '4' => game.tableau[3],
+        '5' => game.tableau[4],
+        '6' => game.tableau[5],
+        '7' => game.tableau[6],
+        '8' => game.tableau[7],
+        _ => panic!("Invalid key"),
+    };
+    let to_stack = match to {
+        't' => game.foundations[0],
+        'y' => game.foundations[1],
+        'u' => game.foundations[2],
+        'i' => game.foundations[3],
+        'q' => game.freecells[0],
+        'w' => game.freecells[1],
+        'e' => game.freecells[2],
+        'r' => game.freecells[3],
+        '1' => game.tableau[0],
+        '2' => game.tableau[1],
+        '3' => game.tableau[2],
+        '4' => game.tableau[3],
+        '5' => game.tableau[4],
+        '6' => game.tableau[5],
+        '7' => game.tableau[6],
+        '8' => game.tableau[7],
+        _ => panic!("Invalid key"),
+    };
+
+    to_stack.legal_move(from_stack)
+}
+
 fn main() {
     let _clean_up = CleanUp;
 
