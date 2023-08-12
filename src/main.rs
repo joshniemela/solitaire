@@ -5,8 +5,10 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 trait Stackable {
-    fn push(&mut self, card: Card) -> Result<(), Card>;
+    fn legal_push(&self, card: Card) -> bool;
+    fn push(&mut self, card: Card);
     fn pop(&mut self) -> Option<Card>;
+    fn top(&self) -> Option<Card>;
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, EnumIter)]
@@ -67,25 +69,21 @@ impl Pile {
     }
 }
 impl Stackable for Pile {
-    fn push(&mut self, card: Card) -> Result<(), Card> {
+    fn legal_push(&self, card: Card) -> bool {
         match self.cards.last() {
-            None => {
-                self.cards.push(card);
-                Ok(())
-            }
-            Some(Card { suit, rank }) => {
-                if card.suit != *suit && card.rank == rank - 1 {
-                    self.cards.push(card);
-                    Ok(())
-                } else {
-                    Err(card)
-                }
-            }
+            None => true,
+            Some(Card { suit, rank }) => card.suit != *suit && card.rank == rank - 1,
         }
+    }
+    fn push(&mut self, card: Card) {
+        self.cards.push(card);
     }
 
     fn pop(&mut self) -> Option<Card> {
         self.cards.pop()
+    }
+    fn top(&self) -> Option<Card> {
+        self.cards.last().copied()
     }
 }
 
@@ -94,15 +92,18 @@ struct Freecell {
     card: Option<Card>,
 }
 impl Stackable for Freecell {
-    fn push(&mut self, card: Card) -> Result<(), Card> {
-        if self.card.is_some() {
-            Err(card)
-        } else {
-            self.card = Some(card);
-            Ok(())
-        }
+    fn legal_push(&self, card: Card) -> bool {
+        self.card.is_none()
+    }
+    fn push(&mut self, card: Card) {
+        self.card = Some(card);
     }
     fn pop(&mut self) -> Option<Card> {
+        let card = self.card;
+        self.card = None;
+        card
+    }
+    fn top(&self) -> Option<Card> {
         self.card
     }
 }
@@ -112,26 +113,14 @@ struct Foundation {
     card: Option<Card>,
 }
 impl Stackable for Foundation {
-    fn push(&mut self, card: Card) -> Result<(), Card> {
+    fn legal_push(&self, card: Card) -> bool {
         match self.card {
-            None => {
-                if card.rank == 0 {
-                    self.card = Some(card);
-                    Ok(())
-                } else {
-                    Err(card)
-                }
-            }
-            // deconstruct the card to suit and rank
-            Some(Card { suit, rank }) => {
-                if card.suit == suit && card.rank == rank + 1 {
-                    self.card = Some(card);
-                    Ok(())
-                } else {
-                    Err(card)
-                }
-            }
+            None => card.rank == 0,
+            Some(Card { suit, rank }) => card.suit == suit && card.rank == rank + 1,
         }
+    }
+    fn push(&mut self, card: Card) {
+        self.card = Some(card);
     }
     fn pop(&mut self) -> Option<Card> {
         // return the card and decrement the rank by 1
@@ -149,6 +138,9 @@ impl Stackable for Foundation {
                 self.card
             }
         }
+    }
+    fn top(&self) -> Option<Card> {
+        self.card
     }
 }
 
@@ -179,14 +171,6 @@ impl Game {
             foundations,
         }
     }
-}
-
-// this function sucks
-fn move_card(game: &mut Game, from: usize, to: usize) -> Result<(), ()> {
-    // move the nth card to the mth freecell
-    let card = game.tableau[from].pop().ok_or(())?;
-    game.freecells[to].push(card).map_err(|_| ())?;
-    Ok(())
 }
 
 // ACUTAL LOOP
@@ -320,14 +304,78 @@ impl Drop for CleanUp {
         disable_raw_mode().unwrap();
     }
 }
+
+// move from one struct that implements stackable to another stackable
+fn move_card(from: &mut impl Stackable, to: &mut impl Stackable) -> Result<(), ()> {
+    match from.top() {
+        None => Err(()),
+        Some(card) => {
+            if to.legal_push(card) {
+                to.push(from.pop().unwrap());
+                Ok(())
+            } else {
+                Err(())
+            }
+        }
+    }
+}
+const FOUNDATION_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
+const FREECELL_KEYS: [char; 4] = ['t', 'y', 'u', 'i'];
+const PILE_KEYS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
+
+// using a char and the game, get the corresponding stackable
+fn get_stackable(game: &Game, key: char) -> Result<Box<&dyn Stackable>, ()> {
+    if FOUNDATION_KEYS.contains(&key) {
+        Ok(Box::new(
+            &game.foundations[FOUNDATION_KEYS.iter().position(|&x| x == key).unwrap()],
+        ))
+    } else if FREECELL_KEYS.contains(&key) {
+        Ok(Box::new(
+            &game.freecells[FREECELL_KEYS.iter().position(|&x| x == key).unwrap()],
+        ))
+    } else if PILE_KEYS.contains(&key) {
+        Ok(Box::new(
+            &game.tableau[PILE_KEYS.iter().position(|&x| x == key).unwrap()],
+        ))
+    } else {
+        Err(())
+    }
+}
+
 fn main() {
     let _clean_up = CleanUp;
-    let foundation_keys = vec!['q', 'w', 'e', 'r'];
-    let freecell_keys = vec!['t', 'y', 'u', 'i'];
-    let pile_keys = vec!['1', '2', '3', '4', '5', '6', '7', '8'];
 
     enter_alt_screen();
-    draw_game(&Game::new());
-    let mut buf = [0; 1];
-    while io::stdin().read(&mut buf).expect("Failed to read line") == 1 && buf != [b'q'] {}
+    let mut game = Game::new();
+    draw_game(&game);
+    let mut stdin = io::stdin();
+    loop {
+        let mut buffer = [0; 1];
+        stdin.read_exact(&mut buffer).unwrap();
+
+        let key = buffer[0] as char;
+
+        if key == 'Q' {
+            break;
+        }
+        // do a move
+        if key == 'm' {
+            let mut buffer = [0; 2];
+            stdin.read_exact(&mut buffer).unwrap();
+            let from = buffer[0] as char;
+            let to = buffer[1] as char;
+            // check if they are in "all_keys"
+            // if they are the same, do nothing
+            if from == to {
+                continue;
+            }
+            // get the stackables
+            let mut from_stack = *get_stackable(&game, from).unwrap();
+            let mut to_stack = *get_stackable(&game, to).unwrap();
+            // try to move the card
+            if move_card(&mut from_stack, &mut to_stack).is_ok() {
+                draw_game(&game);
+            }
+        }
+    }
 }
