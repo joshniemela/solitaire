@@ -1,5 +1,6 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use std::fmt;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -14,6 +15,16 @@ enum Suit {
     Diamonds,
     Hearts,
     Spades,
+}
+impl fmt::Display for Suit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Suit::Clubs => write!(f, "♣"),
+            Suit::Diamonds => write!(f, "♦"),
+            Suit::Hearts => write!(f, "♥"),
+            Suit::Spades => write!(f, "♠"),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -170,67 +181,7 @@ impl Game {
     }
 }
 
-fn make_ascii_card(card: Option<Card>) -> String {
-    match card {
-        None => String::from(" 0 "),
-        Some(Card { suit, rank }) => {
-            let suit_char = match suit {
-                Suit::Clubs => '♣',
-                Suit::Diamonds => '♦',
-                Suit::Hearts => '♥',
-                Suit::Spades => '♠',
-            };
-            let rank_str = match rank {
-                1 => String::from(" A"),
-                10 => String::from("10"),
-                11 => String::from(" J"),
-                12 => String::from(" Q"),
-                13 => String::from(" K"),
-                _ => format!("{:2}", rank),
-            };
-            format!("{}{}", rank_str, suit_char)
-        }
-    }
-}
-
-fn make_game_ascii(game: &Game) -> String {
-    // first row is foundations and freecells
-    let mut ascii = String::new();
-    for foundation in game.foundations.iter() {
-        ascii.push_str(&make_ascii_card(foundation.card));
-        ascii.push(' ');
-    }
-    for freecell in game.freecells.iter() {
-        ascii.push_str(&make_ascii_card(freecell.card));
-        ascii.push(' ');
-    }
-    ascii.push('\n');
-
-    // line spacer
-    ascii.push_str(&String::from_utf8(vec![b'-'; 4 * (FREECELL_NUM + FOUNDATION_NUM)]).unwrap());
-    ascii.push('\n');
-
-    // second row is tableau
-    let mut max_pile_size = 0;
-    for pile in game.tableau.iter() {
-        if pile.cards.len() > max_pile_size {
-            max_pile_size = pile.cards.len();
-        }
-    }
-    for i in 0..max_pile_size {
-        for pile in game.tableau.iter() {
-            if pile.cards.len() > i {
-                ascii.push_str(&make_ascii_card(Some(pile.cards[i])));
-            } else {
-                ascii.push_str("   ");
-            }
-            ascii.push(' ');
-        }
-        ascii.push('\n');
-    }
-    ascii
-}
-
+// this function sucks
 fn move_card(game: &mut Game, from: usize, to: usize) -> Result<(), ()> {
     // move the nth card to the mth freecell
     let card = game.tableau[from].pop().ok_or(())?;
@@ -239,22 +190,144 @@ fn move_card(game: &mut Game, from: usize, to: usize) -> Result<(), ()> {
 }
 
 // ACUTAL LOOP
-use crossterm::terminal;
+use crossterm::{
+    cursor::{DisableBlinking, EnableBlinking, Hide, MoveTo, RestorePosition, SavePosition, Show},
+    execute, queue,
+    style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, Clear, ClearType::All, EnterAlternateScreen,
+        LeaveAlternateScreen,
+    },
+    ExecutableCommand,
+};
 use std::io;
 use std::io::Read;
+use std::io::Write;
 
-struct CleanUp;
+// this sets the terminal to be ready to play the game
+fn enter_alt_screen() {
+    enable_raw_mode().unwrap();
+    execute!(
+        io::stdout(),
+        EnterAlternateScreen,
+        Clear(All),
+        SavePosition,
+        MoveTo(10, 10),
+        Hide,
+    );
+}
 
-impl Drop for CleanUp {
-    fn drop(&mut self) {
-        terminal::disable_raw_mode().expect("Could not disable raw mode")
+fn draw_card_frame(stdout: &mut io::Stdout, x: u16, y: u16) {
+    // draw a pretty card with frame and all
+    queue!(
+        stdout,
+        MoveTo(x, y),
+        EnableBlinking,
+        Print("┌────┐"),
+        MoveTo(x, y + 1),
+        Print("│    │"),
+        MoveTo(x, y + 2),
+        Print("│    │"),
+        MoveTo(x, y + 3),
+        Print("│    │"),
+        MoveTo(x, y + 4),
+        Print("└────┘"),
+        DisableBlinking,
+    );
+}
+
+fn rank_to_char(rank: u8) -> char {
+    match rank {
+        1 => 'A',
+        10 => 'T',
+        11 => 'J',
+        12 => 'Q',
+        13 => 'K',
+        _ => (rank + 48) as char,
     }
 }
 
+fn draw_card(stdout: &mut io::Stdout, card: Option<Card>, x: u16, y: u16) {
+    // draw a pretty card with frame and all
+    let mut stdout = io::stdout();
+    // if the card is red, change the color to red
+    draw_card_frame(&mut stdout, x, y);
+    match card {
+        None => {}
+        Some(Card { suit, rank }) => {
+            if suit == Suit::Diamonds || suit == Suit::Hearts {
+                queue!(stdout, crossterm::style::SetForegroundColor(Color::Red));
+            };
+            queue!(
+                stdout,
+                MoveTo(x + 1, y + 1),
+                Print(rank_to_char(rank)),
+                MoveTo(x + 1, y + 3),
+                Print(suit),
+                MoveTo(x + 4, y + 1),
+                Print(suit),
+                MoveTo(x + 4, y + 3),
+                Print(rank_to_char(rank)),
+                ResetColor,
+            );
+        }
+    }
+}
+
+fn draw_game(game: &Game) {
+    // gives some margin
+    let origin = (2, 0);
+    let foundation_origin = (origin.0 + 6 * FREECELL_NUM as u16 + 2, origin.1);
+    let pile_origin = (origin.0, origin.1 + 6);
+    let mut stdout = io::stdout();
+    // start by drawing the freecells
+    for (i, freecell) in game.freecells.iter().enumerate() {
+        draw_card(
+            &mut stdout,
+            freecell.card,
+            origin.0 + 6 * i as u16,
+            origin.1,
+        );
+    }
+    // draw the foundations
+    for (i, foundation) in game.foundations.iter().enumerate() {
+        draw_card(
+            &mut stdout,
+            foundation.card,
+            foundation_origin.0 + 6 * i as u16,
+            foundation_origin.1,
+        );
+    }
+    // draw the tableau
+    for (i, pile) in game.tableau.iter().enumerate() {
+        for (j, card) in pile.cards.iter().enumerate() {
+            draw_card(
+                &mut stdout,
+                Some(*card),
+                pile_origin.0 + 6 * i as u16,
+                pile_origin.1 + 2 * j as u16,
+            );
+        }
+    }
+    stdout.flush();
+}
+
+// this cleans up the terminal after the game is done
+struct CleanUp;
+impl Drop for CleanUp {
+    fn drop(&mut self) {
+        execute!(io::stdout(), LeaveAlternateScreen, Show).unwrap();
+        disable_raw_mode().unwrap();
+    }
+}
 fn main() {
     let _clean_up = CleanUp;
-    terminal::enable_raw_mode().expect("failed to turn on Raw mode");
+    let foundation_keys = vec!['q', 'w', 'e', 'r'];
+    let freecell_keys = vec!['t', 'y', 'u', 'i'];
+    let pile_keys = vec!['1', '2', '3', '4', '5', '6', '7', '8'];
+
+    enter_alt_screen();
+    draw_game(&Game::new());
     let mut buf = [0; 1];
     while io::stdin().read(&mut buf).expect("Failed to read line") == 1 && buf != [b'q'] {}
-    panic!(); /* add this line*/
 }
