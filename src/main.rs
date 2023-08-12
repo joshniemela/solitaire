@@ -264,7 +264,8 @@ fn draw_game(game: &Game) {
     let foundation_origin = (origin.0 + 6 * FREECELL_NUM as u16 + 2, origin.1);
     let pile_origin = (origin.0, origin.1 + 6);
     let mut stdout = io::stdout();
-    // start by drawing the freecells
+    queue!(stdout, Clear(All));
+    // drawing the freecells
     for (i, freecell) in game.freecells.iter().enumerate() {
         draw_card(
             &mut stdout,
@@ -325,8 +326,9 @@ fn move_card(game: &mut Game, from: char, to: char) -> Result<(), ()> {
         }
     }
 }
-const FOUNDATION_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
-const FREECELL_KEYS: [char; 4] = ['t', 'y', 'u', 'i'];
+
+const FOUNDATION_KEYS: [char; 4] = ['t', 'y', 'u', 'i'];
+const FREECELL_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
 const PILE_KEYS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
 
 // using a char and the game, get the corresponding stackable
@@ -340,7 +342,6 @@ fn get_stackable(game: &mut Game, key: char) -> Result<&mut dyn Stackable, ()> {
     } else {
         Err(())
     }
-}
 
 fn main() {
     let _clean_up = CleanUp;
@@ -359,13 +360,16 @@ fn main() {
             break;
         }
         // do a move
-        if key == 'm' {
+        if key == ' ' {
             let mut buffer = [0; 2];
             stdin.read_exact(&mut buffer).unwrap();
             let from = buffer[0] as char;
             let to = buffer[1] as char;
-            // check if they are in "all_keys"
-            // if they are the same, do nothing
+            execute!(
+                io::stdout(),
+                MoveTo(0, 25),
+                Print(format!("Moving card from: {} to: {}", from, to))
+            );
             if from == to {
                 continue;
             }
