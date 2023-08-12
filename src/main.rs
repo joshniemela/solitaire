@@ -264,7 +264,8 @@ fn draw_game(game: &Game) {
     let foundation_origin = (origin.0 + 6 * FREECELL_NUM as u16 + 2, origin.1);
     let pile_origin = (origin.0, origin.1 + 6);
     let mut stdout = io::stdout();
-    // start by drawing the freecells
+    queue!(stdout, Clear(All));
+    // drawing the freecells
     for (i, freecell) in game.freecells.iter().enumerate() {
         draw_card(
             &mut stdout,
@@ -305,42 +306,9 @@ impl Drop for CleanUp {
     }
 }
 
-// move from one struct that implements stackable to another stackable
-fn move_card(from: &mut impl Stackable, to: &mut impl Stackable) -> Result<(), ()> {
-    match from.top() {
-        None => Err(()),
-        Some(card) => {
-            if to.legal_push(card) {
-                to.push(from.pop().unwrap());
-                Ok(())
-            } else {
-                Err(())
-            }
-        }
-    }
-}
-const FOUNDATION_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
-const FREECELL_KEYS: [char; 4] = ['t', 'y', 'u', 'i'];
+const FOUNDATION_KEYS: [char; 4] = ['t', 'y', 'u', 'i'];
+const FREECELL_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
 const PILE_KEYS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
-
-// using a char and the game, get the corresponding stackable
-fn get_stackable(game: &Game, key: char) -> Result<Box<&dyn Stackable>, ()> {
-    if FOUNDATION_KEYS.contains(&key) {
-        Ok(Box::new(
-            &game.foundations[FOUNDATION_KEYS.iter().position(|&x| x == key).unwrap()],
-        ))
-    } else if FREECELL_KEYS.contains(&key) {
-        Ok(Box::new(
-            &game.freecells[FREECELL_KEYS.iter().position(|&x| x == key).unwrap()],
-        ))
-    } else if PILE_KEYS.contains(&key) {
-        Ok(Box::new(
-            &game.tableau[PILE_KEYS.iter().position(|&x| x == key).unwrap()],
-        ))
-    } else {
-        Err(())
-    }
-}
 
 fn main() {
     let _clean_up = CleanUp;
@@ -359,22 +327,18 @@ fn main() {
             break;
         }
         // do a move
-        if key == 'm' {
+        if key == ' ' {
             let mut buffer = [0; 2];
             stdin.read_exact(&mut buffer).unwrap();
             let from = buffer[0] as char;
             let to = buffer[1] as char;
-            // check if they are in "all_keys"
-            // if they are the same, do nothing
+            execute!(
+                io::stdout(),
+                MoveTo(0, 25),
+                Print(format!("Moving card from: {} to: {}", from, to))
+            );
             if from == to {
                 continue;
-            }
-            // get the stackables
-            let mut from_stack = *get_stackable(&game, from).unwrap();
-            let mut to_stack = *get_stackable(&game, to).unwrap();
-            // try to move the card
-            if move_card(&mut from_stack, &mut to_stack).is_ok() {
-                draw_game(&game);
             }
         }
     }
